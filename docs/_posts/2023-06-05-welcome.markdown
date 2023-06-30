@@ -1,0 +1,68 @@
+---
+layout: post
+title:  "You have been accepted to GSoC"
+date:   2023-06-05 14:06:28 +0100
+categories: intro
+---
+
+{% comment %}
+Welcome page and GSoC application.
+
+Copyright (C) 2023  Benjamin Priour <priour.be@gmail.com>
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+{% endcomment %}
+
+Greetings !
+
+Whether you stumbled upon this website by chance, wandering about aimlessly across the Internet, or were greedily skimming the net about GSOC past contributions, I welcome you !
+
+As the weeks unfold, this sort of introduction will probably dry out. Just enjoy them as they appear, but do not expect much, I wouldn't want to disappoint. What you can expect from this blog is a weekly update of my shenanigans with GCC.
+If as I was, you are intimidated by these folks, thinking they are just grumpy looking veterans swearing only by the name of Emacs and C++, you would be on the spot *cough*! Many of them still use Emacs due to GNU coding style conventions, but as I quickly discovered, most of them are genuinely wanting to help, especially if you are showing a sincere interest in their project.
+There is work to do, and there never will be enough contributors - look at gcc's bugzilla for a day, you'll understand.
+They could not be  **further away** from the grumpy image Torvalds might have passed about open source veterans, rather they are just people with a weird hobby. But then, so you have if you are still reading this.
+
+Anyway, down to the matter, you will find below a link to my GSOC profile, where you will find my application.
+I do not believe it to be a one-in-a-kind application, nor an especially good one. Heck, don't take it as any sort of reference,
+although it has the benefit of being there, and better even to have been accepted ! *if you ever see that David, thanks again :sunglasses:* 
+
+
+I kind of expect you to be there just for the juicy tips, on how to perfect your application, or maybe you are just curious about my specific project, [Extending gcc -fanalyzer C++ support for self-analysis](https://summerofcode.withgoogle.com/programs/2023/projects/6t9Yjufu).
+
+To be nice, and because I might change the project description and/or goals along the road, here is the original version:
+
+
+> Currently, the static analyzer offers little dedicated support for C++.
+> Even when projecting the most straightforward valid C test cases to C++, the checkers output incorrect diagnostics, either by their absence or imprecision. The issues this project aims to tackle are all prerequisites to further extensions of C++ support. The aim of this project is to enable the analyzer to self-analyze itself.
+It will be done through :
+> 1. Recording false positives and false negatives from the self-analysis, as well as paths marked too complex to solve.
+> 2. Tuning the analyzer parameters to draw a balance between self-analysis's completeness and build time.
+> 3. Generalizing relevant gcc.dg/analyzer tests to be run with both C and C++.
+> 4. Adding support for Wanalyser-double-free to C++ allocations pairs new, new[], delete and delete[] both throwing and non-throwing versions.
+> 5. Adding support for tracking unique_ptr null-dereference.
+> 6. Improving the diagnostic paths for the standard library, by not diving into the standard library code. 
+> 
+> **Deliverables**:
+> - New test cases reflecting item **3**.
+> - A patch for each item **4**, **5**, **6** matching this respective order.
+> - A patch fixing the analyzer true positives at the end of the project.
+> - Potentially a new option to split up dumps at vfuncs all, or if they get too large. This however is still in discussion with my mentor.
+
+<br>
+
+---
+
+<br>
+
+And you can also click [here]({{site.baseurl}}/assets/pdf/application-gsoc23.pdf) to have a look at the application I submitted.
