@@ -20,8 +20,9 @@
 
 title: "GSOC 2023 GCC"
 email: priour.be@gmail.com
-description: >- # this means to ignore newlines until "baseurl:"
-  Follow my contribution to GCC, working on adding C++ support to the analyzer.  
+description: >- # this means to ignore newlines until "domain:"
+  Follow my contribution to GCC, working on adding C++ support to the analyzer.
+  © Copyright 2023, Benjamin Priour. Created using Jekyll 4.3.2.
 domain: "vultkayn.github.io"
 baseurl: "/gsoc23-gcc" # the subpath of your site, e.g. /blog
 url: "https://vultkayn.github.io" # the base hostname & protocol for your site, e.g. http://example.com
