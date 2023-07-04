@@ -152,6 +152,17 @@ call_details::get_arg_svalue (unsigned idx) const
   return m_model->get_rvalue (arg, m_ctxt);
 }
 
+/* If argument IDX's svalue at the callsite is a region_svalue,
+   return the region it points to.
+   Otherwise return NULL.  */
+
+const region *
+call_details::maybe_get_arg_region (unsigned idx) const
+{
+  const svalue *sval = get_arg_svalue (idx);
+  return sval->maybe_get_region ();
+}
+
 /* Attempt to get the string literal for argument IDX, or return NULL
    otherwise.
    For use when implementing "__analyzer_*" functions that take

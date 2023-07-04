@@ -35,6 +35,34 @@ along with GCC; see the file COPYING3.  If not see
 
 #if ENABLE_ANALYZER
 
+/* Return TRUE if CALL is non-allocating operator new or operator new[]*/
+
+bool is_placement_new_p (const gcall *call)
+{
+  gcc_assert (call);
+
+  tree fndecl = gimple_call_fndecl (call);
+  if (!fndecl)
+    return false;
+
+  if (!is_named_call_p (fndecl, "operator new", call, 2)
+    && !is_named_call_p (fndecl, "operator new []", call, 2))
+    return false;
+  tree arg1 = gimple_call_arg (call, 1);
+
+  if (!POINTER_TYPE_P (TREE_TYPE (arg1)))
+    return false;
+
+  /* Sadly, for non-throwing new, the second argument type
+    is not REFERENCE_TYPE but also POINTER_TYPE
+    so a simple check is out of the way.  */
+  tree identifier = TYPE_IDENTIFIER (TREE_TYPE (TREE_TYPE (arg1)));
+  if (!identifier)
+    return true;
+  const char *name = IDENTIFIER_POINTER (identifier);
+  return 0 != strcmp (name, "nothrow_t");
+}
+
 namespace ana {
 
 /* Implementations of specific functions.  */
@@ -46,7 +74,7 @@ class kf_operator_new : public known_function
 public:
   bool matches_call_types_p (const call_details &cd) const final override
   {
-    return cd.num_args () == 1;
+    return cd.num_args () == 1 || cd.num_args () == 2;
   }
 
   void impl_call_pre (const call_details &cd) const final override
@@ -54,13 +82,60 @@ public:
     region_model *model = cd.get_model ();
     region_model_manager *mgr = cd.get_manager ();
     const svalue *size_sval = cd.get_arg_svalue (0);
-    const region *new_reg
-      = model->get_or_create_region_for_heap_alloc (size_sval, cd.get_ctxt ());
-    if (cd.get_lhs_type ())
+    region_model_context *ctxt = cd.get_ctxt ();
+    const gcall *call = cd.get_call_stmt ();
+
+    /* If the call is an allocating new, then create a heap allocated
+    region.  */
+    if (!is_placement_new_p (call))
       {
+	const region *new_reg
+	  = model->get_or_create_region_for_heap_alloc (size_sval, ctxt);
+	if (cd.get_lhs_type ())
+	  {
+	    const svalue *ptr_sval
+	      = mgr->get_ptr_svalue (cd.get_lhs_type (), new_reg);
+	    cd.maybe_set_lhs (ptr_sval);
+	  }
+      }
+    /* If the call was actually a placement new, check that accessing
+    the buffer lhs is placed into does not result in out-of-bounds.  */
+    else
+      {
+	const region *ptr_reg = cd.maybe_get_arg_region (1);
+	if (ptr_reg && cd.get_lhs_type ())
+	  {
+	    const region *base_reg = ptr_reg->get_base_region ();
+	    const svalue *num_bytes_sval = cd.get_arg_svalue (0);
+	    const region *sized_new_reg = mgr->get_sized_region (base_reg,
+	      cd.get_lhs_type (),
+	      num_bytes_sval);
+	    model->check_region_for_write (sized_new_reg,
+	      nullptr,
+	      ctxt);
 	const svalue *ptr_sval
-	  = mgr->get_ptr_svalue (cd.get_lhs_type (), new_reg);
+	  = mgr->get_ptr_svalue (cd.get_lhs_type (), sized_new_reg);
 	cd.maybe_set_lhs (ptr_sval);
+	  }
+      }
+  }
+
+  void impl_call_post (const call_details &cd) const final override
+  {
+    region_model *model = cd.get_model ();
+    region_model_manager *mgr = cd.get_manager ();
+    tree callee_fndecl = cd.get_fndecl_for_call ();
+    region_model_context *ctxt = cd.get_ctxt ();
+
+    /* If the call is guaranteed to return nonnull
+      then add a nonnull constraint to the allocated region.  */
+    if (!TREE_NOTHROW (TREE_TYPE (callee_fndecl)) && flag_exceptions)
+      {
+	const svalue *nonnull
+	  = mgr->get_or_create_null_ptr (cd.get_lhs_type ());
+	const svalue *result
+	  = model->get_store_value (cd.get_lhs_region (), ctxt);
+	model->add_constraint (result, NE_EXPR, nonnull, ctxt);
       }
   }
 };

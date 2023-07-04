@@ -754,7 +754,7 @@ public:
     override
   {
     if (change.m_old_state == m_sm.get_start_state ()
-	&& unchecked_p (change.m_new_state))
+	&& (unchecked_p (change.m_new_state) || nonnull_p (change.m_new_state)))
       // TODO: verify that it's the allocation stmt, not a copy
       return label_text::borrow ("allocated here");
     if (unchecked_p (change.m_old_state)
@@ -1910,11 +1910,16 @@ malloc_state_machine::on_stmt (sm_context *sm_ctxt,
 	    return true;
 	  }
 
-	if (is_named_call_p (callee_fndecl, "operator new", call, 1))
-	  on_allocator_call (sm_ctxt, call, &m_scalar_delete);
-	else if (is_named_call_p (callee_fndecl, "operator new []", call, 1))
-	  on_allocator_call (sm_ctxt, call, &m_vector_delete);
-	else if (is_named_call_p (callee_fndecl, "operator delete", call, 1)
+	if (!is_placement_new_p (call))
+	  {
+  bool returns_nonnull = !TREE_NOTHROW (callee_fndecl) && flag_exceptions;
+  if (is_named_call_p (callee_fndecl, "operator new"))
+    on_allocator_call (sm_ctxt, call, &m_scalar_delete, returns_nonnull);
+  else if (is_named_call_p (callee_fndecl, "operator new []"))
+    on_allocator_call (sm_ctxt, call, &m_vector_delete, returns_nonnull);
+	  }
+
+	if (is_named_call_p (callee_fndecl, "operator delete", call, 1)
 		 || is_named_call_p (callee_fndecl, "operator delete", call, 2))
 	  {
 	    on_deallocator_call (sm_ctxt, node, call,

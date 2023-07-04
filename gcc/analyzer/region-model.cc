@@ -3479,6 +3479,27 @@ region_model::eval_condition (const svalue *lhs,
 	}
     }
 
+  /* Attempt to unwrap cast if there is one, and the types match.  */
+  tree lhs_type = lhs->get_type ();
+  tree rhs_type = rhs->get_type ();
+  if (lhs_type && rhs_type)
+  {
+    const unaryop_svalue *lhs_un_op = dyn_cast <const unaryop_svalue *> (lhs);
+    const unaryop_svalue *rhs_un_op = dyn_cast <const unaryop_svalue *> (rhs);
+    if (lhs_un_op && CONVERT_EXPR_CODE_P (lhs_un_op->get_op ())
+      && rhs_un_op && CONVERT_EXPR_CODE_P (rhs_un_op->get_op ())
+      && lhs_type == rhs_type)
+      return eval_condition (lhs_un_op->get_arg (), op, rhs_un_op->get_arg ());
+
+    else if (lhs_un_op && CONVERT_EXPR_CODE_P (lhs_un_op->get_op ())
+      && lhs_type == rhs_type)
+      return eval_condition (lhs_un_op->get_arg (), op, rhs);
+
+    else if (rhs_un_op && CONVERT_EXPR_CODE_P (rhs_un_op->get_op ())
+      && lhs_type == rhs_type)
+      return eval_condition (lhs, op, rhs_un_op->get_arg ());
+  }
+
   /* Otherwise, try constraints.
      Cast to const to ensure we don't change the constraint_manager as we
      do this (e.g. by creating equivalence classes).  */
