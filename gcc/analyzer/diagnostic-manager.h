@@ -21,6 +21,10 @@ along with GCC; see the file COPYING3.  If not see
 #ifndef GCC_ANALYZER_DIAGNOSTIC_MANAGER_H
 #define GCC_ANALYZER_DIAGNOSTIC_MANAGER_H
 
+long trim_diagnostics_depth ();
+bool trim_diagnostics_system_p ();
+bool trim_diagnostics_never_p ();
+
 namespace ana {
 
 class epath_finder;
@@ -180,6 +184,9 @@ private:
 				state_machine::state_t state) const;
   void update_for_unsuitable_sm_exprs (tree *expr) const;
   void prune_interproc_events (checker_path *path) const;
+  void trim_diagnostic_path (checker_path *path) const;
+  void prune_system_headers (checker_path *path) const;
+  void prune_events_too_deep (checker_path *path) const;
   void consolidate_conditions (checker_path *path) const;
   void finish_pruning (checker_path *path) const;
 

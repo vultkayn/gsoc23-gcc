@@ -274,7 +274,7 @@ is_named_call_p (const_tree fndecl, const char *funcname)
    Compare with cp/typeck.cc: decl_in_std_namespace_p, but this doesn't
    rely on being the C++ FE (or handle inline namespaces inside of std).  */
 
-static inline bool
+bool
 is_std_function_p (const_tree fndecl)
 {
   tree name_decl = DECL_NAME (fndecl);
