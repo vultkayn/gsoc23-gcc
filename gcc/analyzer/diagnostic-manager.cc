@@ -20,9 +20,11 @@ along with GCC; see the file COPYING3.  If not see
 
 #include "config.h"
 #define INCLUDE_MEMORY
+#define INCLUDE_VECTOR
 #include "system.h"
 #include "coretypes.h"
 #include "tree.h"
+#include "input.h"
 #include "pretty-print.h"
 #include "gcc-rich-location.h"
 #include "gimple-pretty-print.h"
@@ -59,6 +61,37 @@ along with GCC; see the file COPYING3.  If not see
 #include "make-unique.h"
 
 #if ENABLE_ANALYZER
+
+/* Return positive value of fanalyzer-trim-diagnostics if a depth was given
+  or a negative value otherwise.  */
+
+long trim_diagnostics_depth ()
+{
+  if (trim_diagnostics_system_p () ||  trim_diagnostics_never_p ())
+    return -1;
+
+  char *end = NULL;
+  long depth = strtol (flag_analyzer_trim_diagnostics, &end, 10);
+  gcc_assert (end == NULL || *end == '\0');
+  gcc_assert (!(end == flag_analyzer_trim_diagnostics && depth == 0));
+  return depth;
+}
+
+/* Return true if fanalyzer-trim-diagnostics is set to "system".  */
+
+bool trim_diagnostics_system_p ()
+{
+  int len = strlen (flag_analyzer_trim_diagnostics);
+  return len == 6 && strcmp (flag_analyzer_trim_diagnostics, "system") == 0;
+}
+
+/* Return true if fanalyzer-trim-diagnostics is set to "never".  */
+
+bool trim_diagnostics_never_p ()
+{
+  int len = strlen (flag_analyzer_trim_diagnostics);
+  return len == 5 && strcmp (flag_analyzer_trim_diagnostics, "never") == 0;
+}
 
 namespace ana {
 
@@ -2281,6 +2314,8 @@ diagnostic_manager::prune_path (checker_path *path,
   path->maybe_log (get_logger (), "path");
   prune_for_sm_diagnostic (path, sm, sval, state);
   prune_interproc_events (path);
+  if (! trim_diagnostics_never_p ())
+    trim_diagnostic_path (path);
   consolidate_conditions (path);
   finish_pruning (path);
   path->maybe_log (get_logger (), "pruned");
@@ -2665,6 +2700,103 @@ diagnostic_manager::prune_interproc_events (checker_path *path) const
 
     }
   while (changed);
+}
+
+void
+diagnostic_manager::trim_diagnostic_path (checker_path *path) const
+{
+  if (trim_diagnostics_system_p ())
+    prune_system_headers (path);
+  else
+    prune_events_too_deep (path);
+}
+
+/* Remove everything within ]callsite, IDX].  */
+static void
+prune_within_frame (checker_path *path, int &idx)
+{
+  int nesting = 1;
+  while (idx >= 0 && nesting != 0)
+    {
+      if (path->get_checker_event (idx)->is_call_p ())
+        nesting--;
+      else if (path->get_checker_event (idx)->is_return_p ())
+        nesting++;
+
+      path->delete_event (idx--);
+    }
+}
+
+void
+diagnostic_manager::prune_system_headers (checker_path *path) const
+{
+  int idx = (signed)path->num_events () - 1;
+  while (idx >= 0)
+    {
+      const checker_event *event = path->get_checker_event (idx);
+      /* Prune everything between [..., system call, (...), system return, ...].  */
+      if (event->is_return_p ()
+          && in_system_header_at (event->get_location ()))
+      {
+        int ret_idx = idx;
+        prune_within_frame (path, idx);
+
+        if (get_logger ())
+        {
+          label_text desc
+            (path->get_checker_event (idx)->get_desc (false));
+          log ("filtering event %i-%i:"
+              " system header event: %s",
+              idx, ret_idx, desc.get ());
+        }
+        // delete callsite
+        if (idx >= 0)
+          path->delete_event (idx);
+      }
+
+      idx--;
+    }
+}
+
+void
+diagnostic_manager::prune_events_too_deep (checker_path *path) const
+{
+  long depth = 0;
+  long maxdepth = trim_diagnostics_depth ();
+  gcc_assert (maxdepth >= 0);
+  int idx = (signed)path->num_events () - 1;
+  if (idx >= 0)
+  {
+    depth = path->get_checker_event (0)->get_stack_depth ();
+    maxdepth += depth;
+  }
+
+  while (idx >= 0)
+    {
+      const checker_event *event = path->get_checker_event (idx);
+      /* Prune everything between [..., call too deep, (...), return too deep, ...].  */
+      if (event->is_return_p ()
+          && event->get_stack_depth () > maxdepth)
+      {
+        int ret_idx = idx;
+        prune_within_frame (path, idx);
+
+        if (get_logger ())
+        {
+          label_text desc
+            (path->get_checker_event (idx)->get_desc (false));
+          log ("filtering event %i-%i:"
+              " event too deep: %s",
+              idx, ret_idx, desc.get ());
+        }
+        // delete callsite
+        if (idx >= 0)
+          path->delete_event (idx);
+      }
+
+      idx--;
+    }
+
 }
 
 /* Return true iff event IDX within PATH is on the same line as REF_EXP_LOC.  */
