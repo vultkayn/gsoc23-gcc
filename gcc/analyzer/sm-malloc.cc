@@ -48,6 +48,9 @@ along with GCC; see the file COPYING3.  If not see
 #include "analyzer/checker-event.h"
 #include "analyzer/exploded-graph.h"
 
+
+// #include "cp/cp-tree.h"
+
 #if ENABLE_ANALYZER
 
 namespace ana {
@@ -113,6 +116,10 @@ enum resource_state
   /* State for a pointer returned from an allocator,
      known to be non-NULL.  */
   RS_NONNULL,
+
+  /* State for a pointer that has been destroyed,
+     but not yet deallocated. */
+  RS_DESTROYED,
 
   /* State for a pointer passed to a deallocator.  */
   RS_FREED
@@ -454,6 +461,9 @@ public:
   state_t m_non_heap; // TODO: or should this be a different state machine?
   // or do we need child values etc?
 
+  /* Destroyed state, for pointers destroyed but not deallocated.  */
+  state_t m_destroyed;
+
   /* Stop state, for pointers we don't want to track any more.  */
   state_t m_stop;
 
@@ -718,6 +728,14 @@ static bool
 nonnull_p (state_machine::state_t state)
 {
   return get_rs (state) == RS_NONNULL;
+}
+
+/* Return true if STATE is a value that has been passed to a destructor.  */
+
+static bool
+destroyed_p (state_machine::state_t state)
+{
+  return get_rs (state) == RS_DESTROYED;
 }
 
 /* Return true if STATE is a value that has been passed to a deallocator.  */
@@ -1246,6 +1264,103 @@ private:
   int m_arg_idx;
 };
 
+class destroyed_after_free : public malloc_diagnostic
+{
+public:
+  destroyed_after_free (const malloc_state_machine &sm, tree arg,
+		  const deallocator *deallocator)
+  : malloc_diagnostic (sm, arg),
+    m_deallocator (deallocator)
+  {
+    gcc_assert (deallocator);
+  }
+
+  const char *get_kind () const final override { return "destroyed_after_free"; }
+
+  int get_controlling_option () const final override
+  {
+    return OPT_Wanalyzer_use_after_free;
+  }
+
+  bool emit (rich_location *rich_loc, logger *) final override
+  {
+    diagnostic_metadata m;
+    return warning_meta (rich_loc, m, get_controlling_option (),
+			 "destruction of %qE after %<%s%>",
+			 m_arg, m_deallocator->m_name);
+  }
+
+  label_text describe_state_change (const evdesc::state_change &change)
+    final override
+  {
+    if (freed_p (change.m_new_state))
+      {
+	m_free_event = change.m_event_id;
+	switch (m_deallocator->m_wording)
+	  {
+	  default:
+	  case WORDING_REALLOCATED:
+	    gcc_unreachable ();
+	  case WORDING_FREED:
+	    return label_text::borrow ("freed here");
+	  case WORDING_DELETED:
+	    return label_text::borrow ("deleted here");
+	  case WORDING_DEALLOCATED:
+	    return label_text::borrow ("deallocated here");
+	  }
+      }
+    return malloc_diagnostic::describe_state_change (change);
+  }
+
+  label_text describe_final_event (const evdesc::final_event &ev) final override
+  {
+    const char *funcname = m_deallocator->m_name;
+    if (m_free_event.known_p ())
+      switch (m_deallocator->m_wording)
+	{
+	default:
+	case WORDING_REALLOCATED:
+	  gcc_unreachable ();
+	case WORDING_FREED:
+	  return ev.formatted_print ("destruction of  %qE after %<%s%>; freed at %@",
+				     funcname, ev.m_expr, &m_free_event);
+	case WORDING_DELETED:
+	  return ev.formatted_print ("destruction of  %qE after %<%s%>; deleted at %@",
+				     funcname, ev.m_expr, &m_free_event);
+	case WORDING_DEALLOCATED:
+	  return ev.formatted_print ("destruction of  %qE after %<%s%>;"
+				     " deallocated at %@",
+				     funcname, ev.m_expr, &m_free_event);
+	}
+    else
+      return ev.formatted_print ("destruction of  %qE after %<%s%>",
+				 funcname, ev.m_expr);
+  }
+
+  /* Implementation of pending_diagnostic::supercedes_p for
+     destroyed_after_free.
+
+     We want destroyed-after-free to supercede use-after-free
+     and use-of-uninitialized-value,
+     so that if we have these at the same stmt, we don't emit
+     a use-of-uninitialized, just the destroyed-after-free.
+     (this is because we fully purge information about freed
+     buffers when we free them to avoid state explosions, so
+     that if they are accessed after the free, it looks like
+     they are uninitialized).  */
+
+  bool supercedes_p (const pending_diagnostic &other) const final override
+  {
+    if (other.use_of_uninit_p ()) // TODO add check for use-after-free.
+
+    return false;
+  }
+
+private:
+  diagnostic_event_id_t m_free_event;
+  const deallocator *m_deallocator;
+};
+
 class use_after_free : public malloc_diagnostic
 {
 public:
@@ -1690,6 +1805,7 @@ malloc_state_machine::malloc_state_machine (logger *logger)
   gcc_assert (m_start->get_id () == 0);
   m_null = add_state ("null", RS_FREED, NULL, NULL);
   m_non_heap = add_state ("non-heap", RS_NON_HEAP, NULL, NULL);
+  m_destroyed = add_state ("destroyed", RS_DESTROYED, NULL, NULL);
   m_stop = add_state ("stop", RS_STOP, NULL, NULL);
 }
 
@@ -1867,6 +1983,12 @@ known_allocator_p (const_tree fndecl, const gcall *call)
   return false;
 }
 
+static bool
+is_destructor_call_p (const_tree fndecl, const gcall *call)
+{
+  return DECL_CXX_DESTRUCTOR_P (fndecl);
+}
+
 /* If PTR's nullness is not known, transition it to the "assumed-non-null"
    state for the current frame.  */
 
@@ -1912,11 +2034,12 @@ malloc_state_machine::on_stmt (sm_context *sm_ctxt,
 
 	if (!is_placement_new_p (call))
 	  {
-  bool returns_nonnull = !TREE_NOTHROW (callee_fndecl) && flag_exceptions;
-  if (is_named_call_p (callee_fndecl, "operator new"))
-    on_allocator_call (sm_ctxt, call, &m_scalar_delete, returns_nonnull);
-  else if (is_named_call_p (callee_fndecl, "operator new []"))
-    on_allocator_call (sm_ctxt, call, &m_vector_delete, returns_nonnull);
+      // TODO check if tree.h:DECL_IS_OPERATOR_NEW_P works !!
+	    bool returns_nonnull = !TREE_NOTHROW (callee_fndecl) && flag_exceptions;
+	    if (is_named_call_p (callee_fndecl, "operator new"))
+	      on_allocator_call (sm_ctxt, call, &m_scalar_delete, returns_nonnull);
+	    else if (is_named_call_p (callee_fndecl, "operator new []"))
+	      on_allocator_call (sm_ctxt, call, &m_vector_delete, returns_nonnull);
 	  }
 
 	if (is_named_call_p (callee_fndecl, "operator delete", call, 1)
@@ -2100,12 +2223,24 @@ malloc_state_machine::on_stmt (sm_context *sm_ctxt,
 	    }
 	  else if (freed_p (state))
 	    {
-	      tree diag_arg = sm_ctxt->get_diagnostic_tree (arg);
-	      const allocation_state *astate = as_a_allocation_state (state);
-	      sm_ctxt->warn (node, stmt, arg,
-			     make_unique<use_after_free>
-			       (*this, diag_arg, astate->m_deallocator));
-	      sm_ctxt->set_next_state (stmt, arg, m_stop);
+	      if (is_destructor_call_p (callee_fndecl, call))
+		{
+		  tree diag_arg = sm_ctxt->get_diagnostic_tree (arg);
+		  const allocation_state *astate = as_a_allocation_state (state);
+		  sm_ctxt->warn (node, stmt, arg,
+				 make_unique<destroyed_after_free>
+				   (*this, diag_arg, astate->m_deallocator));
+		  // stay in state freed
+		}
+	      else
+		{
+		  tree diag_arg = sm_ctxt->get_diagnostic_tree (arg);
+		  const allocation_state *astate = as_a_allocation_state (state);
+		  sm_ctxt->warn (node, stmt, arg,
+				 make_unique<use_after_free>
+				   (*this, diag_arg, astate->m_deallocator));
+		  sm_ctxt->set_next_state (stmt, arg, m_stop);
+		}
 	    }
 	}
     }
@@ -2184,6 +2319,7 @@ malloc_state_machine::on_allocator_call (sm_context *sm_ctxt,
       /* TODO: report leak.  */
     }
 }
+
 
 /* Handle deallocations of non-heap pointers.
    non-heap -> stop, with warning.  */
