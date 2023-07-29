@@ -1,4 +1,4 @@
-/* { dg-additional-options "-fdiagnostics-plain-output -fdiagnostics-path-format=inline-events -fanalyzer-trim-diagnostics=1" } */
+/* { dg-additional-options "-fdiagnostics-plain-output -fdiagnostics-path-format=inline-events" } */
 /* { dg-skip-if "" { c++98_only }  } */
 
 #include <memory>

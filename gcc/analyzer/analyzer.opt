@@ -290,6 +290,10 @@ fanalyzer-transitivity
 Common Var(flag_analyzer_transitivity) Init(0)
 Enable transitivity of constraints during analysis.
 
+fanalyzer-show-events-in-system-header
+Common Var(flag_analyzer_show_events_in_system_headers) Init(0)
+Trim diagnostics path that are too long before emission.
+
 fanalyzer-call-summaries
 Common Var(flag_analyzer_call_summaries) Init(0)
 Approximate the effect of function calls to simplify analysis.
@@ -361,9 +365,5 @@ Dump the analyzer supergraph to a SRCFILE.supergraph.dot file.
 fdump-analyzer-untracked
 Common RejectNegative Var(flag_dump_analyzer_untracked)
 Emit custom warnings with internal details intended for analyzer developers.
-
-fanalyzer-trim-diagnostics=
-Common Joined RejectNegative ToLower Var(flag_analyzer_trim_diagnostics) Init("system")
--fanalyzer-trim-diagnostics=[never|system|<maxdepth>]	Trim diagnostics path that are too long before emission.
 
 ; This comment is to ensure we retain the blank line above.
