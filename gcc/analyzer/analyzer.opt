@@ -290,7 +290,7 @@ fanalyzer-transitivity
 Common Var(flag_analyzer_transitivity) Init(0)
 Enable transitivity of constraints during analysis.
 
-fanalyzer-show-events-in-system-header
+fanalyzer-show-events-in-system-headers
 Common Var(flag_analyzer_show_events_in_system_headers) Init(0)
 Trim diagnostics path that are too long before emission.
 

@@ -1,28 +1,19 @@
-/* { dg-additional-options "-fdiagnostics-plain-output -fdiagnostics-path-format=inline-events" } */
-/* { dg-skip-if "" { c++98_only }  } */
+/* { dg-additional-options "-fdiagnostics-plain-output" } */
+/* { dg-skip-if "no shared_ptr in C++98" { c++98_only }  } */
 
 #include <memory>
 
 struct A {int x; int y;};
 
 int main () {
-  std::shared_ptr<A> a; 
+  std::shared_ptr<A> a; /* { dg-line declare_a } */
   a->x = 4; /* { dg-line deref_a } */ 
   /* { dg-warning "dereference of NULL" "" { target *-*-* } deref_a } */
 
   return 0;
 }
 
-/* { dg-begin-multiline-output "" }
-  'int main()': events 1-2
-    |
-    |
-    +--> 'std::__shared_ptr_access<_Tp, _Lp, <anonymous>, <anonymous> >::element_type* std::__shared_ptr_access<_Tp, _Lp, <anonymous>, <anonymous> >::operator->() const [with _Tp = A; __gnu_cxx::_Lock_policy _Lp = __gnu_cxx::_S_atomic; bool <anonymous> = false; bool <anonymous> = false]': event 3
-           |
-           |
-    <------+
-    |
-  'int main()': events 4-5
-    |
-    |
-   { dg-end-multiline-output "" } */
+/* { dg-note "\\(1\\) 'a\\.std::.+::_M_ptr' is NULL" "" { target c++14_down } declare_a } */
+/* { dg-note "dereference of NULL 'a\\.std.+::operator->\\(\\)'" "" { target *-*-* } deref_a } */
+/* { dg-note "calling 'std::.+::operator->' from 'main'" "" { target *-*-* } deref_a } */
+/* { dg-note "returning to 'main' from 'std::.+::operator->'" "" { target *-*-* } deref_a } */

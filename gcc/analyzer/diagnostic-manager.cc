@@ -2282,9 +2282,9 @@ diagnostic_manager::prune_path (checker_path *path,
   LOG_FUNC (get_logger ());
   path->maybe_log (get_logger (), "path");
   prune_for_sm_diagnostic (path, sm, sval, state);
+  prune_interproc_events (path);
   if (! flag_analyzer_show_events_in_system_headers)
     prune_system_headers (path);
-  prune_interproc_events (path);
   consolidate_conditions (path);
   finish_pruning (path);
   path->maybe_log (get_logger (), "pruned");
@@ -2671,9 +2671,11 @@ diagnostic_manager::prune_interproc_events (checker_path *path) const
   while (changed);
 }
 
-/* Remove everything within [calling, IDX]. For consistency,
+/* Remove everything within [call point, IDX]. For consistency,
    IDX should represent the return event of the frame to delete,
-   or if there is none it should be the last event of the frame.  */
+   or if there is none it should be the last event of the frame.
+   After this function, IDX designates the event prior to calling
+   this frame.  */
 
 static void
 prune_frame (checker_path *path, int &idx)
@@ -2685,9 +2687,9 @@ prune_frame (checker_path *path, int &idx)
   do
     {
       if (path->get_checker_event (idx)->is_call_p ())
-        nesting--;
+	nesting--;
       else if (path->get_checker_event (idx)->is_return_p ())
-        nesting++;
+	nesting++;
 
       path->delete_event (idx--);
     } while (idx >= 0 && nesting != 0);
@@ -2700,26 +2702,30 @@ diagnostic_manager::prune_system_headers (checker_path *path) const
   while (idx >= 0)
     {
       const checker_event *event = path->get_checker_event (idx);
-      /* Prune everything between [..., system entry, (...), system return, ...].  */
+      /* Prune everything between
+	 [..., system entry, (...), system return, ...].  */
       if (event->is_return_p ()
-          && in_system_header_at (event->get_location ()))
+	  && in_system_header_at (event->get_location ()))
       {
-        int ret_idx = idx;
-        label_text desc
-            (path->get_checker_event (ret_idx)->get_desc (false));
-        prune_frame (path, idx);
+	int ret_idx = idx;
+	label_text desc
+	    (path->get_checker_event (ret_idx)->get_desc (false));
+	prune_frame (path, idx);
 
-        if (get_logger ())
-        {
-          log ("filtering event %i-%i:"
-              " system header event: %s",
-              idx, ret_idx, desc.get ());
-        }
-        // delete callsite within system headers
-        // delete callsite, function entry and return
-        // if (idx >= 0)
-        //   path->delete_event (idx);
-
+	if (get_logger ())
+	{
+	  log ("filtering event %i-%i:"
+	       " system header event: %s",
+	       idx, ret_idx, desc.get ());
+	}
+	// Delete function entry within system headers.
+	if (idx >= 0)
+	  {
+	    event = path->get_checker_event (idx);
+	    if (event->is_function_entry_p ()
+		&& in_system_header_at (event->get_location ()))
+		  path->delete_event (idx);
+    }
       }
 
       idx--;
