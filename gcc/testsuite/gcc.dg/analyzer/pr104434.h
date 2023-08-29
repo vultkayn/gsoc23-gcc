@@ -21,8 +21,6 @@
    analyzer considers the execution paths where the malloc is called, and
    then the free is not called.  With __attribute__((const)), the analyzer
    ought to rule out such paths.  */
-
-#define NULL ((void *)0)
 typedef __SIZE_TYPE__ size_t;
 
 extern void *malloc (size_t __size)

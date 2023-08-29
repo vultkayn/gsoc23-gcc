@@ -286,8 +286,6 @@ public:
 
   virtual const builtin_known_function *
   dyn_cast_builtin_kf () const { return NULL; }
-  virtual builtin_known_function *
-  dyn_cast_builtin_kf () { return NULL; }
 };
 
 /* Subclass of known_function for builtin functions.  */

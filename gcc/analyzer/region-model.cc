@@ -4447,6 +4447,14 @@ region_model::add_constraints_from_binop (const svalue *outer_lhs,
 	  return true;
 	}
       return false;
+    case GE_EXPR:
+    case GT_EXPR:
+    case LE_EXPR:
+    case LT_EXPR:
+      if (!is_true)
+	inner_op = invert_tree_comparison (inner_op, false /* honor_nans */);
+      *out = add_constraint (inner_lhs, inner_op, inner_rhs, ctxt);
+      return true;
     }
 }
 

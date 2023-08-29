@@ -1,6 +1,7 @@
 /* { dg-additional-options "-Wno-analyzer-too-complex" } */
 
 #include "pr104434.h"
+#include "analyzer-decls.h"
 
 /* Declare LAPACKE_lsame with __attribute__((const)).  */
 int LAPACKE_lsame( char ca, char cb ) __attribute__((const));

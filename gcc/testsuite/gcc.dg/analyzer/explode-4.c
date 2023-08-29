@@ -4,8 +4,9 @@
    function calls.  */
 
 /* { dg-additional-options "-Wno-implicit-function-declaration -Wno-int-conversion -Wno-analyzer-too-complex" } */
+/* C only: Wno-int-conversion is not valid for C++. */
 
-#define NULL ((void *)0)
+#define NULL ((void*)0)
 typedef unsigned char uint8_t;
 typedef unsigned short int uint16_t;
 typedef unsigned int uint32_t;
