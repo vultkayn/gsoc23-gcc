@@ -1,18 +1,3 @@
-<style>
-success
-{
-  color: green;
-}
-warn
-{
-  color: orange;
-}
-error
-{
-  color: red;
-}
-</style>
-
 # GSoC 23 - Extending gcc -fanalyzer C++ support for self-analysis
 
 ## Description
