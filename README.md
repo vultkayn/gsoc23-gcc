@@ -30,8 +30,9 @@ It will be done through :
 
 |Initial Goal|Change|Why|
 | --- | --- | --- |
-|Adding support for tracking unique_ptr null-dereference| Aborted | I've spent a week designing a solution. The long-term answer was to implement a new state-machine to track ownership transfers in C++. It has been deemed to be a task requiring a whole summer by itself. |
-|Adding support for `Wanalyser-double-free` to C++ allocation pairs...|Exceeded|Not only support of `Wanalyzer-double-free` was added but of all warnings already in place for `malloc`. The initial project was oblivious of non-allocating `new` (i.e. *placement new*), yet they now are fully supported as well, and out-of-bounds accesses are detected. |
+|Add support for tracking unique_ptr null-dereference| Aborted | I've spent a week designing a solution. The long-term answer was to implement a new state-machine to track ownership transfers in C++. It has been deemed to be a task requiring a whole summer by itself. |
+|Add support for `Wanalyser-double-free` to C++ allocation pairs...|Exceeded|Not only support of `Wanalyzer-double-free` was added but of all warnings already in place for `malloc`. The initial project was oblivious of non-allocating `new` (i.e. *placement new*), yet they now are fully supported as well, and out-of-bounds accesses are detected. |
+|Improve the emission of two diagnostics at the same statement|Additional|I found that two unrelated diagnostics - i.e. resolving one would not fix the other - could still supersede one another if emitted at the same statement, leading to false positives. |
 
 ### Patches delivered
 
@@ -53,7 +54,7 @@ so that two diagnostics resulting from incompatible paths can never supersedes e
 ### Patches in review
 
 - Added an extra warning for C++ emitted when a class's field is named similarly to one inherited.
- [c++: Additional warning for name-hiding [PR12341]](https://gcc.gnu.org/pipermail/gcc-patches/2023-September/629233.html)
+ [`c++: Additional warning for name-hiding [PR12341]`](https://gcc.gnu.org/pipermail/gcc-patches/2023-September/629233.html)
 
 ### Ongoing work
 
