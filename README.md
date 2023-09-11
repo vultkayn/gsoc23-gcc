@@ -58,6 +58,6 @@ so that two diagnostics resulting from incompatible paths can never supersedes e
 
 ### Ongoing work
 
-## What's left
+- Continuation of generalizing gcc.dg/analyzer to C++ with:
+ [`analyzer: Move gcc.dg/analyzer tests to c-c++-common (3) [PR96395]`](https://gcc.gnu.org/pipermail/gcc-patches/2023-September/629896.html)
 
-### Future plans
